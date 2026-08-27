@@ -19,14 +19,24 @@ services:
       - api
     restart: unless-stopped
 
-  # tunnel ออกเน็ตให้ Vercel เรียก backend ได้
+  # tunnel ออกเน็ตให้ Vercel เรียก backend ได้ (TryCloudflare — ไม่ต้องสมัคร ไม่ต้องมีโดเมน
+  # ไม่มีหน้า interstitial แบบ ngrok)
   #   docker compose --profile tunnel up -d
-  #   ต้องมี NGROK_AUTHTOKEN ใน .env (สมัครฟรี dashboard.ngrok.com)
-  #   ดู URL: http://localhost:4040   หรือ  docker compose logs ngrok
+  #   ดู URL:  docker compose logs cloudflared | grep trycloudflare.com
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --url http://nginx:80
+    depends_on:
+      - nginx
+    restart: unless-stopped
+
+  # ทางเลือก: ngrok (ต้องมี NGROK_AUTHTOKEN ใน .env, มีหน้า warning สำหรับ browser)
+  #   docker compose --profile ngrok up -d ngrok
   ngrok:
     image: ngrok/ngrok:latest
-    profiles: ["tunnel"]
-    command: http nginx:80          # มี static domain: เพิ่ม --domain=${NGROK_DOMAIN}
+    profiles: ["ngrok"]
+    command: http nginx:80
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
     ports:
