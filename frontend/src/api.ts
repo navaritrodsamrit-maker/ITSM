@@ -3,9 +3,12 @@ import type { DetailsResponse, Incident, ServiceData } from "./types";
 
 export class AuthError extends Error {}
 
+// ngrok free แสดงหน้า interstitial กับ browser — header นี้ข้ามมัน
+const H: HeadersInit = { "ngrok-skip-browser-warning": "1" };
+
 export async function fetchServices(): Promise<string[]> {
   try {
-    const r = await fetch(`${API_BASE}/services`);
+    const r = await fetch(`${API_BASE}/services`, { headers: H });
     if (!r.ok) throw new Error();
     const j = await r.json();
     if (Array.isArray(j.services) && j.services.length) return j.services;
@@ -18,7 +21,7 @@ export async function fetchServices(): Promise<string[]> {
 export async function fetchServiceDetails(service: string): Promise<ServiceData> {
   const url = `${API_BASE}/report/performance/details/${encodeURIComponent(service)}`;
   try {
-    const r = await fetch(url);
+    const r = await fetch(url, { headers: H });
     if (r.status === 401) throw new AuthError("เซสชัน ITSM หมดอายุ");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j: DetailsResponse = await r.json();
@@ -33,7 +36,7 @@ export async function notifyTeams(service?: string): Promise<void> {
   const path = service
     ? `/notify/teams/${encodeURIComponent(service)}`
     : `/notify/teams`;
-  const r = await fetch(`${API_BASE}${path}`, { method: "POST" });
+  const r = await fetch(`${API_BASE}${path}`, { method: "POST", headers: H });
   if (!r.ok) throw new Error(`แจ้งเตือนไม่สำเร็จ (HTTP ${r.status})`);
 }
 

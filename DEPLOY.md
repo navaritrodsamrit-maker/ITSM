@@ -32,7 +32,30 @@ curl http://localhost/health          # {"status":"ok"}
 - `api` container ไม่ publish port ออกนอก — เข้าถึงผ่าน `nginx` เท่านั้น
 - nginx ฟัง `:80` แล้ว proxy ไป `api:8000` (ตั้ง `--proxy-headers` ให้ uvicorn แล้ว)
 
-### 3. โดเมน + HTTPS
+### 3. เปิดออกเน็ตด้วย ngrok (ไม่มีโดเมน)
+
+1. สมัครฟรี https://dashboard.ngrok.com → คัดลอก authtoken
+2. ใส่ใน `.env`:
+   ```
+   NGROK_AUTHTOKEN=2xxxxxxxxxx...
+   ```
+3. รันพร้อม tunnel:
+   ```bash
+   docker compose --profile tunnel up -d
+   ```
+4. เอา URL:
+   ```bash
+   curl -s http://localhost:4040/api/tunnels | python3 -c "import sys,json;print(json.load(sys.stdin)['tunnels'][0]['public_url'])"
+   # หรือเปิด http://localhost:4040 ในเบราว์เซอร์
+   ```
+   ได้ `https://xxxx-yyy.ngrok-free.app` → ใช้เป็น `VITE_API_BASE` บน Vercel
+5. ใส่โดเมน Vercel ใน `ITSM_CORS_ORIGINS` (`.env`) แล้ว `docker compose up -d`
+
+> free tier: URL เปลี่ยนทุกครั้งที่ restart (นอกจากใช้ static domain — ngrok ให้ฟรี 1 อัน
+> ตั้ง `--domain=` ใน `docker-compose.yml` service `ngrok`)
+> frontend ส่ง header `ngrok-skip-browser-warning` ให้อยู่แล้ว (ไม่งั้น fetch เจอหน้า warning)
+
+### 4. โดเมน + HTTPS (ทางเลือก ถ้ามีเซิร์ฟเวอร์ public จริง)
 
 1. ชี้ A record ของโดเมน (เช่น `api.example.com`) มาที่ IP เซิร์ฟเวอร์
 2. แก้ `server_name _;` ใน [nginx/default.conf](nginx/default.conf) เป็นโดเมนจริง
@@ -45,16 +68,16 @@ curl http://localhost/health          # {"status":"ok"}
 4. เปิดบล็อก `server { listen 443 ... }` ใน `nginx/default.conf`, uncomment `443:443` และ volume `certs` ใน [docker-compose.yml](docker-compose.yml)
 5. `docker compose up -d`
 
-### 4. อัปเดตโค้ด
+### 5. อัปเดตโค้ด
 
 ```bash
-git pull && docker compose up -d --build
+git pull && docker compose --profile tunnel up -d --build
 ```
 
-### 5. cron แจ้งเตือน (บน host)
+### 6. cron แจ้งเตือน (บน host)
 
 ```
-*/30 * * * * curl -sS -X POST "http://localhost/notify/teams"
+*/30 * * * * curl -sS -X POST "http://localhost:8001/notify/teams"
 ```
 
 ### อัปเดต cookie เมื่อหมดอายุ

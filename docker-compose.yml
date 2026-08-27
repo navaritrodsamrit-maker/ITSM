@@ -18,3 +18,19 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+
+  # tunnel ออกเน็ตให้ Vercel เรียก backend ได้
+  #   docker compose --profile tunnel up -d
+  #   ต้องมี NGROK_AUTHTOKEN ใน .env (สมัครฟรี dashboard.ngrok.com)
+  #   ดู URL: http://localhost:4040   หรือ  docker compose logs ngrok
+  ngrok:
+    image: ngrok/ngrok:latest
+    profiles: ["tunnel"]
+    command: http nginx:80          # มี static domain: เพิ่ม --domain=${NGROK_DOMAIN}
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    ports:
+      - "4040:4040"
+    depends_on:
+      - nginx
+    restart: unless-stopped
