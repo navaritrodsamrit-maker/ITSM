@@ -92,7 +92,15 @@ cp .env.example .env        # ตั้ง VITE_API_BASE ให้ชี้ back
 npm run dev                 # http://localhost:5173
 ```
 
-backend เปิด CORS (`allow_origins=["*"]`) ให้แล้ว UI polls ทุก 60 วิ
+backend เปิด CORS (ตั้งโดเมนได้ที่ `ITSM_CORS_ORIGINS`) UI polls ทุก 60 วิ
+
+## Deploy
+
+frontend → Vercel, backend → Docker + nginx — ดู [DEPLOY.md](DEPLOY.md)
+
+```bash
+docker compose up -d --build      # backend + nginx ที่ :80
+```
 
 ## ไฟล์
 

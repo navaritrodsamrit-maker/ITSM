@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.env
+cookies.json
+frontend
+README.md
+nginx
+docker-compose.yml
+.dockerignore

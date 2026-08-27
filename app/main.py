@@ -22,7 +22,7 @@ app = FastAPI(title="ITSM Report API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_list,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

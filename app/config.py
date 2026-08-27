@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     services: str = "Store Retention Management,Human Resource Management"  # ITSM_SERVICES
     always_status: str = "รอดำเนินการ Assign"   # ITSM_ALWAYS_STATUS: status พวกนี้แจ้งเสมอ ไม่สน deadline
 
+    # CORS: โดเมน frontend ที่อนุญาต (คั่นด้วย ,) — "*" = ทุกโดเมน
+    cors_origins: str = "*"            # ITSM_CORS_ORIGINS เช่น https://itsm-watcher.vercel.app
+
+    @property
+    def cors_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     @property
     def service_list(self) -> list[str]:
         return [s.strip() for s in self.services.split(",") if s.strip()]
