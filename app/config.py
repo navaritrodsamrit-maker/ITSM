@@ -1,0 +1,28 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="ITSM_", extra="ignore")
+
+    base_url: str = "https://itsm.cpall.co.th"
+    cookie: str                       # ITSM_COOKIE ใน .env (session cookie ชื่อ "itsm")
+    timeout: float = 30.0
+    support_group: str = "Application Support"   # กรองผลลัพธ์เริ่มต้น ("" = ไม่กรอง)
+    tz: str = "Asia/Bangkok"
+
+    # แจ้งเตือน MS Teams
+    teams_webhook: str = ""            # ITSM_TEAMS_WEBHOOK (Power Automate / Workflows URL)
+    alert_hours: float = 24.0          # ITSM_ALERT_HOURS: แจ้งเฉพาะงานที่เหลือ < ชม.นี้ (รวมที่เลยกำหนด)
+    services: str = "Store Retention Management,Human Resource Management"  # ITSM_SERVICES
+    always_status: str = "รอดำเนินการ Assign"   # ITSM_ALWAYS_STATUS: status พวกนี้แจ้งเสมอ ไม่สน deadline
+
+    @property
+    def service_list(self) -> list[str]:
+        return [s.strip() for s in self.services.split(",") if s.strip()]
+
+    @property
+    def always_status_list(self) -> list[str]:
+        return [s.strip().casefold() for s in self.always_status.split(",") if s.strip()]
+
+
+settings = Settings()

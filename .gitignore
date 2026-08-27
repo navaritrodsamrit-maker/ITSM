@@ -1,0 +1,21 @@
+# secrets
+.env
+cookies.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# node / frontend
+node_modules/
+dist/
+*.local
+
+# misc
+.DS_Store
+.browser_profile/
+
+# ts
+*.tsbuildinfo
