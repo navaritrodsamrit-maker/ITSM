@@ -5,13 +5,15 @@
     <key>Label</key>
     <string>com.itsm-watcher.notify</string>
 
+    <!-- logic ฝังใน plist (ไม่อ่านไฟล์จาก ~/Documents ซึ่ง launchd โดน TCC บล็อก)
+         จ-ศ 08:00-19:59 เท่านั้น -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>__SCRIPT__</string>
+        <string>-c</string>
+        <string>d=$(date +%u); h=$(date +%H); if [ "$d" -le 5 ] &amp;&amp; [ "$h" -ge 8 ] &amp;&amp; [ "$h" -lt 20 ]; then echo "[$(date '+%F %T')] POST" &gt;&gt; "$HOME/Library/Logs/itsm-watcher/notify.log"; /usr/bin/curl -sS -m 60 -X POST "__URL__" &gt;&gt; "$HOME/Library/Logs/itsm-watcher/notify.log" 2&gt;&amp;1; echo &gt;&gt; "$HOME/Library/Logs/itsm-watcher/notify.log"; fi</string>
     </array>
 
-    <!-- รันทุก 30 นาที (สคริปต์เช็คเองว่าอยู่ในช่วง จ-ศ 08-20 ไหม) -->
     <key>StartInterval</key>
     <integer>1800</integer>
 

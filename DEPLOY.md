@@ -81,19 +81,22 @@ git pull && docker compose --profile tunnel up -d --build
 */30 8-20 * * 1-5 curl -sS -X POST "http://localhost:8001/notify/teams"
 ```
 
-**macOS** — launchd (cron บน macOS ติด TCC):
+**macOS** — launchd (cron บน macOS ติด TCC prompt):
 ```bash
 LOGDIR="$HOME/Library/Logs/itsm-watcher"; mkdir -p "$LOGDIR"
 PLIST="$HOME/Library/LaunchAgents/com.itsm-watcher.notify.plist"
-sed -e "s#__SCRIPT__#$PWD/scripts/notify.sh#" -e "s#__LOGDIR__#$LOGDIR#g" \
+sed -e "s#__URL__#http://localhost:8001/notify/teams#" -e "s#__LOGDIR__#$LOGDIR#g" \
     scripts/com.itsm-watcher.notify.plist > "$PLIST"
 launchctl bootstrap "gui/$UID" "$PLIST"
+launchctl kickstart -k "gui/$UID/com.itsm-watcher.notify"   # ทดสอบทันที
 ```
-- ยิงทุก 30 นาที; [scripts/notify.sh](scripts/notify.sh) กรองเองให้เหลือ จ-ศ 08:00–20:00
+- ยิงทุก 30 นาที; logic ฝังใน plist กรองเองให้เหลือ จ-ศ 08:00–19:59
+- logic อยู่ใน plist ไม่ใช่ไฟล์แยก เพราะ launchd อ่านไฟล์ใน `~/Documents` ไม่ได้ (TCC)
 - log: `~/Library/Logs/itsm-watcher/notify.log`
-- สั่งรันทันที: `launchctl kickstart -k "gui/$UID/com.itsm-watcher.notify"`
 - ถอด: `launchctl bootout "gui/$UID/com.itsm-watcher.notify"`
 - ⚠️ Mac ต้องไม่ sleep — System Settings → Energy → Prevent sleeping (หรือ `caffeinate -s`)
+
+(`scripts/notify.sh` เก็บไว้สำหรับ cron บน Linux)
 
 ### อัปเดต cookie เมื่อหมดอายุ
 
