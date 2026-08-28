@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .itsm_client import ITSMAuthError, ITSMClient, ITSMError
-from .notify import TeamsError, build_card, send_teams, text_card
+from .notify import TeamsError, build_card, build_digest_card, send_teams, text_card
 
 
 @asynccontextmanager
@@ -63,26 +63,13 @@ async def performance_details(
     return await _details(request, value, month, year, support_group)
 
 
-async def _alert_one(request, service, month, year, support_group, hours, dry_run, webhook):
-    data = await _details(request, service, month, year, support_group)
-    always = settings.always_status_list
-    if hours is None:                    # default = ทุก incident ของ service
-        due = data["details"]
-    else:                                # กรองเฉพาะที่เหลือ < hours ชม. (+ status ที่แจ้งเสมอ)
-        due = [d for d in data["details"]
-               if (d["hours_left"] is not None and d["hours_left"] < hours)
-               or str(d.get("status", "")).strip().casefold() in always]
-    if not due:
-        return {"service": service, "matched": 0, "sent": False, "reason": "ไม่มีงานเข้าเกณฑ์"}
-    payload = build_card(service, due, hours)
-    if dry_run:
-        return {"service": service, "matched": len(due), "sent": False, "card": payload}
-    try:
-        await send_teams(payload, webhook or "")
-    except TeamsError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    return {"service": service, "matched": len(due), "sent": True,
-            "incidents": [d["incident_no"] for d in due]}
+def _filter_due(details: list[dict], hours: float | None) -> list[dict]:
+    if hours is None:                    # ทุก incident
+        return details
+    always = settings.always_status_list  # เหลือ < hours ชม. หรือ status ที่แจ้งเสมอ
+    return [d for d in details
+            if (d["hours_left"] is not None and d["hours_left"] < hours)
+            or str(d.get("status", "")).strip().casefold() in always]
 
 
 @app.post("/notify/teams")
@@ -95,10 +82,25 @@ async def notify_teams_all(
     dry_run: bool = False,
     webhook: str | None = None,
 ):
-    """แจ้งเตือนทุก service ใน ITSM_SERVICES (Store Retention Management, Human Resource Management, ...)."""
-    results = [await _alert_one(request, svc, month, year, support_group, hours, dry_run, webhook)
-               for svc in settings.service_list]
-    return {"services": settings.service_list, "results": results}
+    """แจ้งเตือนทุก service ใน ITSM_SERVICES — การ์ดเดียว ส่ง webhook ครั้งเดียว."""
+    groups: list[tuple[str, list[dict]]] = []
+    for svc in settings.service_list:
+        data = await _details(request, svc, month, year, support_group)
+        due = _filter_due(data["details"], hours)
+        if due:
+            groups.append((svc, due))
+
+    if not groups:
+        return {"sent": False, "reason": "ไม่มีงานเข้าเกณฑ์", "services": settings.service_list}
+
+    payload = build_digest_card(groups, hours)
+    if dry_run:
+        return {"sent": False, "matched": {s: len(i) for s, i in groups}, "card": payload}
+    try:
+        await send_teams(payload, webhook or "")
+    except TeamsError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"sent": True, "matched": {s: [d["incident_no"] for d in i] for s, i in groups}}
 
 
 @app.post("/notify/teams/{value}")
@@ -113,7 +115,19 @@ async def notify_teams(
     webhook: str | None = None,          # override ITSM_TEAMS_WEBHOOK
 ):
     """ดึงงานของ service เดียว แล้วส่งการ์ดสรุปเข้า MS Teams."""
-    return await _alert_one(request, value, month, year, support_group, hours, dry_run, webhook)
+    data = await _details(request, value, month, year, support_group)
+    due = _filter_due(data["details"], hours)
+    if not due:
+        return {"service": value, "matched": 0, "sent": False, "reason": "ไม่มีงานเข้าเกณฑ์"}
+    payload = build_card(value, due, hours)
+    if dry_run:
+        return {"service": value, "matched": len(due), "sent": False, "card": payload}
+    try:
+        await send_teams(payload, webhook or "")
+    except TeamsError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"service": value, "matched": len(due), "sent": True,
+            "incidents": [d["incident_no"] for d in due]}
 
 
 @app.post("/notify/teams-test")
