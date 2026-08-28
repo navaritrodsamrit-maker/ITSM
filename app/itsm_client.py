@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -6,6 +7,15 @@ import httpx
 from .config import settings
 
 _TZ = ZoneInfo(settings.tz)
+_SUBFORM = re.compile(r"-\d+$")   # เลข inc ลงท้าย -1, -2, ... = sub-form
+
+
+def itsm_url(incident_no: str, ident) -> str | None:
+    if not ident:
+        return None
+    path = ("incidents/sub-form/form" if _SUBFORM.search(str(incident_no or ""))
+            else "incidents/request/main-incident")
+    return f"{settings.base_url}/{path}?id={ident}"
 
 
 def hours_left(deadline: str) -> float | None:
@@ -92,7 +102,6 @@ class ITSMClient:
             h = hours_left(str(d.get("deadline", "")))
             d["hours_left"] = h
             d["urgency"] = _urgency(h, str(d.get("lateStatus", "")))
-            d["itsm_url"] = (f"{settings.base_url}/incidents/request/main-incident?id={d['id']}"
-                             if d.get("id") else None)
+            d["itsm_url"] = itsm_url(d.get("incident_no"), d.get("id"))
         details.sort(key=lambda d: (d["hours_left"] is None, d["hours_left"] or 0))
         return {"columns": data.get("columns") or [], "details": details, "count": len(details)}
