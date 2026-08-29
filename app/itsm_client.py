@@ -69,11 +69,24 @@ class ITSMClient:
         self._client = httpx.AsyncClient(
             base_url=settings.base_url,
             headers=_HEADERS,
-            cookies={"itsm": settings.cookie},
+            cookies={"itsm": settings.current_cookie()},
             timeout=settings.timeout,
         )
     async def close(self) -> None:
         await self._client.aclose()
+    def set_cookie(self, value: str) -> None:
+        self._client.cookies.set("itsm", value.strip(), domain=".cpall.co.th")
+    async def check(self) -> bool:
+        """ยิงเบา ๆ เช็คว่า cookie ยังใช้ได้ไหม."""
+        try:
+            await self.performance_details(
+                {"month": "2000-01", "year": "2000", "column": "service", "value": "_healthcheck_"}
+            )
+            return True
+        except ITSMAuthError:
+            return False
+        except ITSMError:
+            return True   # ตอบกลับมาแล้ว (แค่ไม่มีข้อมูล) = cookie ใช้ได้
     async def performance_details(self, payload: dict, support_group: str = "") -> dict:
         try:
             r = await self._client.post("/api/report/performance/details", json=payload)

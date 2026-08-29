@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
@@ -36,6 +36,38 @@ async def services():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+def _check_admin(token: str | None):
+    if not settings.admin_token:
+        raise HTTPException(status_code=503, detail="admin ปิดอยู่ (ตั้ง ITSM_ADMIN_TOKEN)")
+    if token != settings.admin_token:
+        raise HTTPException(status_code=401, detail="admin token ไม่ถูกต้อง")
+
+
+@app.get("/admin/itsm-cookie")
+async def itsm_cookie_status(request: Request, x_admin_token: str | None = Header(default=None)):
+    _check_admin(x_admin_token)
+    ok = await request.app.state.itsm.check()
+    return {"valid": ok}
+
+
+@app.post("/admin/itsm-cookie")
+async def set_itsm_cookie(
+    request: Request,
+    cookie: str = Body(..., embed=True, description="ค่า cookie 'itsm' ตัวใหม่"),
+    x_admin_token: str | None = Header(default=None),
+):
+    _check_admin(x_admin_token)
+    cookie = cookie.strip()
+    if not cookie:
+        raise HTTPException(status_code=400, detail="cookie ว่าง")
+    client = request.app.state.itsm
+    client.set_cookie(cookie)
+    if not await client.check():
+        raise HTTPException(status_code=400, detail="cookie ใหม่ใช้ไม่ได้ (ITSM ตอบ 401)")
+    settings.save_cookie(cookie)          # persist -> รอด container restart
+    return {"valid": True, "saved": True}
 
 
 

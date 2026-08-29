@@ -2,9 +2,11 @@ services:
   api:
     build: .
     image: itsm-watcher-api
-    env_file: .env          # ITSM_COOKIE, ITSM_TEAMS_WEBHOOK, ITSM_CORS_ORIGINS, ...
+    env_file: .env          # ITSM_COOKIE, ITSM_TEAMS_WEBHOOK, ITSM_CORS_ORIGINS, ITSM_ADMIN_TOKEN, ...
     expose:
       - "8000"              # ไม่ publish ออกนอก — ให้ nginx เท่านั้นที่คุยด้วย
+    volumes:
+      - api_data:/data       # เก็บ cookie ที่อัปเดตผ่าน UI ให้รอด restart
     restart: unless-stopped
 
   nginx:
@@ -44,3 +46,6 @@ services:
     depends_on:
       - nginx
     restart: unless-stopped
+
+volumes:
+  api_data:

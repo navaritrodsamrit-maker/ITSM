@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -5,7 +7,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="ITSM_", extra="ignore")
 
     base_url: str = "https://itsm.cpall.co.th"
-    cookie: str                       # ITSM_COOKIE ใน .env (session cookie ชื่อ "itsm")
+    cookie: str = ""                  # ITSM_COOKIE ใน .env (session cookie ชื่อ "itsm")
+    cookie_file: str = "/data/itsm_cookie"   # ถ้ามีไฟล์นี้ = ใช้ค่าในไฟล์แทน (อัปเดตผ่าน UI)
+    admin_token: str = ""             # ITSM_ADMIN_TOKEN: ต้องมีถึงจะอัปเดต cookie ผ่าน API ได้
     timeout: float = 30.0
     support_group: str = "Application Support"   # กรองผลลัพธ์เริ่มต้น ("" = ไม่กรอง)
     tz: str = "Asia/Bangkok"
@@ -18,6 +22,21 @@ class Settings(BaseSettings):
 
     # CORS: โดเมน frontend ที่อนุญาต (คั่นด้วย ,) — "*" = ทุกโดเมน
     cors_origins: str = "*"            # ITSM_CORS_ORIGINS เช่น https://itsm-watcher.vercel.app
+
+    def current_cookie(self) -> str:
+        """cookie ที่ใช้จริง: ไฟล์ (ถ้ามี) > env ITSM_COOKIE."""
+        try:
+            v = Path(self.cookie_file).read_text().strip()
+            if v:
+                return v
+        except OSError:
+            pass
+        return self.cookie
+
+    def save_cookie(self, value: str) -> None:
+        p = Path(self.cookie_file)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(value.strip() + "\n")
 
     @property
     def cors_list(self) -> list[str]:
