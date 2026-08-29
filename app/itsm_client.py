@@ -75,7 +75,7 @@ class ITSMClient:
     async def close(self) -> None:
         await self._client.aclose()
     def set_cookie(self, value: str) -> None:
-        self._client.cookies.set("itsm", value.strip(), domain=".cpall.co.th")
+        self._client.cookies = httpx.Cookies({"itsm": value.strip()})
     async def check(self) -> bool:
         """ยิงเบา ๆ เช็คว่า cookie ยังใช้ได้ไหม."""
         try:
