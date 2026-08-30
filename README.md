@@ -1,6 +1,6 @@
 # ITSM Report API
 
-Wrap ITSM performance-report + แจ้งเตือน deadline เข้า MS Teams
+Wrap ITSM performance-report + แจ้งเตือน deadline เข้า MS Teams + RAG chat (Ollama)
 
 ## Setup
 
@@ -94,6 +94,23 @@ npm run dev                 # http://localhost:5173
 
 backend เปิด CORS (ตั้งโดเมนได้ที่ `ITSM_CORS_ORIGINS`) UI polls ทุก 60 วิ
 
+## RAG chat (Ollama)
+
+ถาม-ตอบจากคลังความรู้ (เอกสาร + CSV incident) ผ่าน LLM local
+
+```
+POST /rag/upload        multipart file  (PDF / PPTX / TXT)
+POST /rag/upload-csv    multipart file  (CSV: เลข inc, ปัญหา, สาเหตุ, การแก้ไข)
+POST /rag/chat          {message, history[]}  -> {answer, sources[]}
+GET  /rag/status        เช็ค Ollama + โมเดล
+GET  /rag/documents  ·  DELETE /rag/documents/{id}
+```
+
+- ต้องมี Ollama รันอยู่ (host) + `ollama pull qwen3:8b` + `ollama pull bge-m3`
+- ตั้งค่าโมเดล/URL ที่ `ITSM_OLLAMA_URL`, `ITSM_CHAT_MODEL`, `ITSM_EMBED_MODEL` ใน `.env`
+- คลังความรู้เก็บใน `/data/rag.db` (SQLite + embedding, ค้นด้วย cosine)
+- หน้า chat อยู่ที่ `/chat` ของ frontend
+
 ## Deploy
 
 frontend → Vercel, backend → Docker + nginx — ดู [DEPLOY.md](DEPLOY.md)
@@ -109,6 +126,7 @@ docker compose up -d --build      # backend + nginx ที่ :80
 | `app/config.py` | env `ITSM_*` |
 | `app/itsm_client.py` | httpx client + กรอง + คำนวณ hours_left/urgency |
 | `app/notify.py` | สร้าง Adaptive Card + ส่ง Teams |
+| `app/rag/` | extract ไฟล์ + vector store (SQLite) + Ollama embed/chat |
 | `app/main.py` | FastAPI app + endpoints + CORS |
 | `main.py` | script เดิม ยิงตรงเทสเร็ว |
-| `frontend/` | React dashboard |
+| `frontend/` | React dashboard (hand-built, สำรอง) — ตัวจริงอยู่ repo Lovable |
