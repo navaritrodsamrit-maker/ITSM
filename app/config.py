@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     # CORS: โดเมน frontend ที่อนุญาต (คั่นด้วย ,) — "*" = ทุกโดเมน
     cors_origins: str = "*"            # ITSM_CORS_ORIGINS เช่น https://itsm-watcher.vercel.app
 
+    # RAG / Ollama
+    ollama_url: str = "http://host.docker.internal:11434"   # ITSM_OLLAMA_URL
+    chat_model: str = "qwen3:8b"      # ITSM_CHAT_MODEL
+    embed_model: str = "bge-m3"       # ITSM_EMBED_MODEL (ต้อง ollama pull ก่อน)
+    rag_db: str = "/data/rag.db"
+    rag_top_k: int = 5
+    rag_chunk_chars: int = 900
+    rag_chunk_overlap: int = 150
+
     def current_cookie(self) -> str:
         """cookie ที่ใช้จริง: ไฟล์ (ถ้ามี) > env ITSM_COOKIE."""
         try:

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .itsm_client import ITSMAuthError, ITSMClient, ITSMError
 from .notify import TeamsError, build_card, build_digest_card, send_teams, text_card
+from .rag.routes import router as rag_router
 
 
 @asynccontextmanager
@@ -26,6 +27,9 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+app.include_router(rag_router)
 
 
 @app.get("/services")

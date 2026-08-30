@@ -6,7 +6,9 @@ services:
     expose:
       - "8000"              # ไม่ publish ออกนอก — ให้ nginx เท่านั้นที่คุยด้วย
     volumes:
-      - api_data:/data       # เก็บ cookie ที่อัปเดตผ่าน UI ให้รอด restart
+      - api_data:/data       # cookie ที่อัปเดตผ่าน UI + คลังความรู้ RAG (rag.db)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # ให้ container ต่อ Ollama บน host ได้
     restart: unless-stopped
 
   nginx:
