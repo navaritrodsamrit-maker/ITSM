@@ -27,10 +27,16 @@ class Settings(BaseSettings):
     ollama_url: str = "http://host.docker.internal:11434"   # ITSM_OLLAMA_URL
     chat_model: str = "qwen3:8b"      # ITSM_CHAT_MODEL
     embed_model: str = "bge-m3"       # ITSM_EMBED_MODEL (ต้อง ollama pull ก่อน)
-    rag_db: str = "/data/rag.db"
+    chroma_dir: str = "/data/chroma"
+    rag_db: str = "/data/rag.db"      # ของเดิม (SQLite) — ใช้ migrate ครั้งเดียว
     rag_top_k: int = 5
     rag_chunk_chars: int = 900
     rag_chunk_overlap: int = 150
+    rag_general: str = "ทั่วไป"       # ป้ายคลังความรู้ที่ไม่ผูกกับ service
+
+    @property
+    def rag_services(self) -> list[str]:
+        return [self.rag_general, *self.service_list]
 
     def current_cookie(self) -> str:
         """cookie ที่ใช้จริง: ไฟล์ (ถ้ามี) > env ITSM_COOKIE."""

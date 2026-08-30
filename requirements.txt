@@ -7,3 +7,4 @@ python-multipart>=0.0.9
 pypdf>=5.0
 python-pptx>=1.0
 numpy>=1.26
+chromadb>=0.5,<2

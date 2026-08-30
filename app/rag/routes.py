@@ -1,10 +1,10 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from ..config import settings
 from . import store
 from .extract import extract, parse_incident_csv
-from .ingest import ingest_document, ingest_incidents
+from .ingest import ingest_document, ingest_incidents, resolve_service
 from .ollama import OllamaError, chat, embed, health
 
 router = APIRouter(prefix="/rag", tags=["rag"])
@@ -14,19 +14,23 @@ _MAX_MB = 25
 
 @router.get("/status")
 async def status():
-    return {"ollama": await health(),
-            "documents": len(store.list_documents()),
-            "chat_model": settings.chat_model, "embed_model": settings.embed_model}
+    return {
+        "ollama": await health(),
+        "documents": await store.count(),
+        "chat_model": settings.chat_model,
+        "embed_model": settings.embed_model,
+        "services": settings.rag_services,     # ["ทั่วไป", "Human Resource Management", ...]
+    }
 
 
 @router.get("/documents")
-async def documents():
-    return {"documents": store.list_documents()}
+async def documents(service: str | None = Query(default=None)):
+    return {"documents": await store.list_documents(service)}
 
 
 @router.delete("/documents/{doc_id}")
 async def remove(doc_id: str):
-    if not store.delete_document(doc_id):
+    if not await store.delete_document(doc_id):
         raise HTTPException(status_code=404, detail="ไม่พบเอกสาร")
     return {"deleted": doc_id}
 
@@ -39,25 +43,28 @@ async def _read(f: UploadFile) -> bytes:
 
 
 @router.post("/upload")
-async def upload(file: UploadFile = File(...)):
-    """PDF / PPTX / TXT -> ตัด chunk -> embed -> เก็บ."""
+async def upload(file: UploadFile = File(...), service: str = Form(default="")):
+    """PDF / PPTX / TXT -> ตัด chunk -> embed -> เก็บในคลังของ service."""
+    svc = resolve_service(service)
     data = await _read(file)
     text = extract(file.filename or "file", data)
     try:
-        doc = await ingest_document(file.filename or "file",
-                                    (file.filename or "").rsplit(".", 1)[-1].lower(), text)
+        return await ingest_document(
+            file.filename or "file",
+            (file.filename or "").rsplit(".", 1)[-1].lower(), svc, text,
+        )
     except OllamaError as e:
         raise HTTPException(status_code=502, detail=str(e))
-    return doc
 
 
 @router.post("/upload-csv")
-async def upload_csv(file: UploadFile = File(...)):
+async def upload_csv(file: UploadFile = File(...), service: str = Form(default="")):
     """CSV: เลข inc, ปัญหา, สาเหตุ, การแก้ไข -> 1 แถว = 1 chunk."""
+    svc = resolve_service(service)
     data = await _read(file)
     rows = parse_incident_csv(data)
     try:
-        doc = await ingest_incidents(file.filename or "incidents.csv", rows)
+        doc = await ingest_incidents(file.filename or "incidents.csv", svc, rows)
     except OllamaError as e:
         raise HTTPException(status_code=502, detail=str(e))
     return {**doc, "rows": len(rows)}
@@ -66,6 +73,7 @@ async def upload_csv(file: UploadFile = File(...)):
 class ChatIn(BaseModel):
     message: str
     history: list[dict] = []          # [{role, content}, ...] ไม่รวมข้อความล่าสุด
+    service: str | None = None        # จำกัดการค้นเฉพาะคลังของ service นี้ (None = ทุกคลัง)
     top_k: int | None = None
 
 
@@ -81,15 +89,19 @@ async def rag_chat(body: ChatIn):
     q = body.message.strip()
     if not q:
         raise HTTPException(status_code=400, detail="ข้อความว่าง")
+
+    svc = None
+    if body.service:
+        svc = resolve_service(body.service)
+
     try:
         qvec = (await embed([q]))[0]
     except OllamaError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    hits = store.search(qvec, body.top_k or settings.rag_top_k)
-    context = "\n\n---\n\n".join(
-        f"[{h['doc_name']}] {h['text']}" for h in hits
-    ) or "(ไม่มีเอกสารในคลังความรู้)"
+    hits = await store.search(qvec, body.top_k or settings.rag_top_k, svc)
+    context = "\n\n---\n\n".join(f"[{h['doc_name']}] {h['text']}" for h in hits) \
+        or "(ไม่มีเอกสารในคลังความรู้)"
 
     messages = [
         {"role": "system", "content": _SYSTEM},
@@ -103,9 +115,10 @@ async def rag_chat(body: ChatIn):
 
     return {
         "answer": answer,
+        "service": svc,
         "sources": [
             {"doc_name": h["doc_name"], "doc_id": h["doc_id"], "kind": h["doc_kind"],
-             "score": round(h["score"], 3), "excerpt": h["text"][:300]}
+             "service": h["service"], "score": h["score"], "excerpt": h["text"][:300]}
             for h in hits
         ],
     }

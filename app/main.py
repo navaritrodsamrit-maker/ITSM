@@ -14,6 +14,11 @@ from .rag.routes import router as rag_router
 async def lifespan(app: FastAPI):
     app.state.itsm = ITSMClient()
     try:
+        from .rag.migrate import migrate_sqlite_if_needed
+        await migrate_sqlite_if_needed()
+    except Exception as e:  # noqa: BLE001 - อย่าให้ startup ล้มเพราะ migrate
+        print(f"[rag] migrate error: {e}")
+    try:
         yield
     finally:
         await app.state.itsm.close()
