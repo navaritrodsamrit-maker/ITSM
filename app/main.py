@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -80,17 +81,41 @@ async def set_itsm_cookie(
 
 
 
-async def _details(request: Request, value, month, year, support_group) -> dict:
-    now = datetime.now()
-    payload = {"month": month or now.strftime("%Y-%m"), "year": year or now.strftime("%Y"),
-               "column": "service", "value": value}
-    sg = settings.support_group if support_group is None else support_group
+def _prev_month(month: str) -> str:
+    """'YYYY-MM' -> เดือนก่อนหน้า (ข้ามปีให้ถูก)."""
+    y, m = (int(x) for x in month.split("-", 1))
+    return f"{y - 1}-12" if m == 1 else f"{y}-{m - 1:02d}"
+
+
+async def _fetch_month(request: Request, value, month, year, sg) -> dict:
+    payload = {"month": month, "year": year, "column": "service", "value": value}
     try:
         return await request.app.state.itsm.performance_details(payload, sg)
     except ITSMAuthError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except ITSMError as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+async def _details(request: Request, value, month, year, support_group, prev: bool = True) -> dict:
+    now = datetime.now()
+    month = month or now.strftime("%Y-%m")
+    year = year or month.split("-", 1)[0]
+    sg = settings.support_group if support_group is None else support_group
+
+    if not prev:
+        return await _fetch_month(request, value, month, year, sg)
+
+    pm = _prev_month(month)
+    cur, past = await asyncio.gather(          # ยิงขนานกัน — ไม่ให้ latency คูณสอง
+        _fetch_month(request, value, month, year, sg),
+        _fetch_month(request, value, pm, pm.split("-", 1)[0], sg),
+    )
+
+    seen = {d.get("incident_no") for d in cur["details"]}
+    details = cur["details"] + [d for d in past["details"] if d.get("incident_no") not in seen]
+    details.sort(key=lambda d: (d["hours_left"] is None, d["hours_left"] or 0))
+    return {"columns": cur["columns"] or past["columns"], "details": details, "count": len(details)}
 
 
 @app.get("/report/performance/details/{value}")   # alias ให้ตรงกับ path ของ ITSM
@@ -100,8 +125,9 @@ async def performance_details(
     month: str | None = None,
     year: str | None = None,
     support_group: str | None = None,   # None = ใช้ค่า default, "" = ไม่กรอง
+    prev: bool = True,                   # True = ดึงเดือนก่อนหน้ามารวมด้วย
 ):
-    return await _details(request, value, month, year, support_group)
+    return await _details(request, value, month, year, support_group, prev)
 
 
 def _filter_due(details: list[dict], hours: float | None) -> list[dict]:
@@ -122,11 +148,12 @@ async def notify_teams_all(
     hours: float | None = None,          # ใส่ = กรองเฉพาะงานเหลือ < ชม.นี้ (ไม่ใส่ = ทุกงาน)
     dry_run: bool = False,
     webhook: str | None = None,
+    prev: bool = True,                   # True = ดึงเดือนก่อนหน้ามารวมด้วย
 ):
     """แจ้งเตือนทุก service ใน ITSM_SERVICES — การ์ดเดียว ส่ง webhook ครั้งเดียว."""
     groups: list[tuple[str, list[dict]]] = []
     for svc in settings.service_list:
-        data = await _details(request, svc, month, year, support_group)
+        data = await _details(request, svc, month, year, support_group, prev)
         due = _filter_due(data["details"], hours)
         if due:
             groups.append((svc, due))
@@ -154,9 +181,10 @@ async def notify_teams(
     hours: float | None = None,          # ใส่ = กรองเฉพาะงานเหลือ < ชม.นี้ (ไม่ใส่ = ทุกงาน)
     dry_run: bool = False,               # ไม่ส่งจริง คืน card ที่จะส่ง
     webhook: str | None = None,          # override ITSM_TEAMS_WEBHOOK
+    prev: bool = True,                   # True = ดึงเดือนก่อนหน้ามารวมด้วย
 ):
     """ดึงงานของ service เดียว แล้วส่งการ์ดสรุปเข้า MS Teams."""
-    data = await _details(request, value, month, year, support_group)
+    data = await _details(request, value, month, year, support_group, prev)
     due = _filter_due(data["details"], hours)
     if not due:
         return {"service": value, "matched": 0, "sent": False, "reason": "ไม่มีงานเข้าเกณฑ์"}
