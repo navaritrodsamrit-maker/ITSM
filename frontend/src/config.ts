@@ -1,5 +1,6 @@
 export const API_BASE =
-  import.meta.env.VITE_API_BASE?.replace(/\/$/, "") || "http://localhost:8001";
+  import.meta.env.VITE_API_BASE?.replace(/\/$/, "")
+  || "https://sensitive-hepatitis-simplified-writers.trycloudflare.com";
 
 export const ITSM_BASE =
   import.meta.env.VITE_ITSM_BASE?.replace(/\/$/, "") || "https://itsm.cpall.co.th";
