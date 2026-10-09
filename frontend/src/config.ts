@@ -5,7 +5,7 @@
  */
 
 export const API_BASE: string =
-  (import.meta.env['VITE_API_BASE'] as string | undefined) ?? "http://localhost:8001";
+  (import.meta.env['VITE_API_BASE'] as string | undefined) ?? "https://colon-measure-sword-hebrew.trycloudflare.com";
 
 export const ITSM_BASE: string =
   (import.meta.env['VITE_ITSM_BASE'] as string | undefined) ?? "https://itsm.cpall.co.th";
