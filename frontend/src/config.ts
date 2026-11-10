@@ -5,7 +5,7 @@
  */
 
 export const API_BASE: string =
-  (import.meta.env['VITE_API_BASE'] as string | undefined) ?? "https://stomach-recognised-proof-lyric.trycloudflare.com";
+  (import.meta.env['VITE_API_BASE'] as string | undefined) ?? "https://tasks-ministries-columbus-transformation.trycloudflare.com";
 
 export const ITSM_BASE: string =
   (import.meta.env['VITE_ITSM_BASE'] as string | undefined) ?? "https://itsm.cpall.co.th";
